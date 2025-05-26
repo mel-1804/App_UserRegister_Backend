@@ -19,9 +19,9 @@ Este backend expone una API REST para el registro, autenticación y listado de u
      python -m venv venv
 
 4. Activa tu entorno virtual
-     # En macOS/Linux:
+     ## En macOS/Linux:
     source venv/bin/activate
-    # En Windows (cmd):
+    ## En Windows (cmd):
     venv\Scripts\activate.bat
 
 5. Instalar dependencias
