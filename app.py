@@ -55,7 +55,7 @@ def register():
     user = Users(
         rut=data['rut'],
         name=data['name'],
-        last_name=data['last_name'],
+        last_name=data['lastName'],
         email=data['email'],
         cellphone=data.get('cellphone'),
         password=hashed_password
