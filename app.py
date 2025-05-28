@@ -8,6 +8,8 @@ from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash
+
 
 
 load_dotenv()
@@ -31,17 +33,21 @@ def home():
 
 #GET:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::GET
 
-#This endpoint alows to get the data from all the users, except for passwords--------------------------------
+#This endpoint alows to get the data from all the users, except for passwords-------------------------------TESTED OK
 @app.route('/users', methods=['GET'])
 @jwt_required()
 def get_users():
+    current_user = get_jwt_identity()
+
     users = Users.query.filter_by(is_active=True).all()
-    return jsonify([user.serialize() for user in users]), 200
+    serialized_users = [user.serialize() for user in users]
+
+    return jsonify(serialized_users), 200
 
 
 #POST:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::POST
 
-#This endpoint alows to create a new user-------------------------------------------------------------------test OK
+#This endpoint alows to create a new user-------------------------------------------------------------------TESTED OK
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
@@ -65,7 +71,7 @@ def register():
     return jsonify({'msg': 'Usuario registrado exitosamente'}), 201
 
 
-#This endpoint alows to do login for each user---------------------------------------------------------------test OK
+#This endpoint alows to do login for each user---------------------------------------------------------------TESTED OK
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -73,7 +79,7 @@ def login():
     if not user or not user.is_active:
         return jsonify({'msg': 'Usuario no existe o está inactivo'}), 401
     if bcrypt.check_password_hash(user.password, data['password']):
-        token = create_access_token(identity=user.id)
+        token = create_access_token(identity=str(user.id))
         return jsonify({
             'access_token': token,
             'user': user.serialize()
@@ -84,19 +90,38 @@ def login():
 
 #PUT:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::PUT
 
-#This endpoint updates the user information, except for the email and rut---------------------------------------
-@app.route('/user/<int:id>', methods=['PUT'])
+#This endpoint updates the user information, except for the email and rut---------------------------------------TESTED OK
+@app.route('/updateUser/<int:id>', methods=['PUT'])
 @jwt_required()
 def update_user(id):
-    user = Users.query.get_or_404(id)
-    data = request.json
-    user.name = data.get('name', user.name)
-    user.last_name = data.get('last_name', user.last_name)
-    user.cellphone = data.get('cellphone', user.cellphone)
-    if 'password' in data:
-        user.password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+    user = db.session.get(Users, id)
+    if not user:
+        return jsonify({'message': 'Usuario no encontrado'}), 404
+
+    data = request.get_json()
+    if data is None:
+        print("No se recibió JSON o JSON inválido")
+        return jsonify({"message": "JSON inválido o no recibido"}), 400
+    print("Datos recibidos en backend:", data)
+
+
+    name = data.get("name")
+    last_name = data.get("lastName")
+    cellphone = data.get("cellphone")
+    password = data.get("password")
+
+    if name:
+        user.name = name
+    if last_name:
+        user.last_name = last_name
+    if cellphone:
+        user.cellphone = cellphone
+    if password:
+        user.password = bcrypt.generate_password_hash(password).decode('utf-8')
     db.session.commit()
-    return jsonify({'msg': 'Usuario actualizado correctamente'})
+
+    return jsonify({"message": "Usuario actualizado correctamente"}), 200
+
 
 #This endpoint just deactivates the user, recommended for production as "DELETE USER"----------------------------
 @app.route('/user/<int:id>/deactivate', methods=['PUT'])
