@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import os
+import re
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -9,8 +10,6 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash
-
-
 
 load_dotenv()
 
@@ -25,6 +24,8 @@ migrate = Migrate(app, db)
 jwt = JWTManager(app)
 bcrypt = Bcrypt(app)
 CORS(app)
+
+email_regex = re.compile(r'^[\w\.-]+@[\w\.-]+\.\w+$')
 
 @app.route('/', methods=['GET'])
 def home():
@@ -51,20 +52,37 @@ def get_users():
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
-    existing_user = Users.query.filter(
-        (Users.email == data['email']) | (Users.rut == data['rut'])
-    ).first()
-    if existing_user:
-        return jsonify({'msg': 'Usuario ya registrado con ese RUT o email'}), 400
 
+     # Validate email format
+    email = data.get('email', '')
+    if not email or not email_regex.match(email):
+        return jsonify({'msg': 'Correo electrónico no es válido'}), 400
+    
+    # Validate password length
+    password = data.get('password', '')
+    if not password or len(password) < 6 or len(password) > 10:
+        return jsonify({'msg': 'La contraseña debe tener entre 6 y 10 caracteres'}), 400
+
+    # Check if email is already registered
+    if Users.query.filter_by(email=email).first():
+        return jsonify({'msg': 'Ya existe un usuario registrado con este correo electrónico'}), 400
+
+    # Checks if RUT is already registered
+    if Users.query.filter_by(rut=data.get('rut')).first():
+        return jsonify({'msg': 'Ya existe un usuario registrado con este RUT'}), 400
+
+    # Hash the password
     hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+
+    # Create and store the user
     user = Users(
         rut=data['rut'],
         name=data['name'],
         last_name=data['lastName'],
         email=data['email'],
         cellphone=data.get('cellphone'),
-        password=hashed_password
+        password=hashed_password,
+        is_active=True
     )
     db.session.add(user)
     db.session.commit()
@@ -100,11 +118,8 @@ def update_user(id):
 
     data = request.get_json()
     if data is None:
-        print("No se recibió JSON o JSON inválido")
         return jsonify({"message": "JSON inválido o no recibido"}), 400
-    print("Datos recibidos en backend:", data)
-
-
+   
     name = data.get("name")
     last_name = data.get("lastName")
     cellphone = data.get("cellphone")
@@ -136,7 +151,7 @@ def deactivate_user(id):
 #DELETE:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::DELETE
 
 #This endopoint really deletes the user, not recommended for production-----------------------------------------
-@app.route('/user/<int:id>', methods=['DELETE'])
+@app.route('/deleteUser/<int:id>', methods=['DELETE'])
 @jwt_required()
 def delete_user(id):
     user = Users.query.get_or_404(id)
